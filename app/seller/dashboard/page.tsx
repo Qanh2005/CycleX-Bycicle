@@ -1,0 +1,286 @@
+// app/seller/dashboard/page.tsx
+"use client";
+
+import React, { useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/app/hooks/useAuth";
+import { useDashboard } from "@/app/hooks/useDashboard";
+import { type TopListing } from "@/app/services/dashboardService";
+import { MetricCard } from "@/app/components/MetricCard";
+import { ErrorBanner } from "@/app/components/ErrorBanner";
+import { useToast } from "@/app/contexts/ToastContext";
+import { PageLoading } from "@/app/components/ui";
+import { formatPrice } from "../../utils/format";
+import { TOP_LISTINGS_LIMIT } from "../../constants";
+
+const DashboardPage: React.FC = () => {
+  const router = useRouter();
+  const { addToast } = useToast();
+  const { isLoggedIn, isLoading: authLoading, user } = useAuth(); // Get user data
+
+  // Load dashboard data using custom hook - Moved up to fix hook ordering
+  const { stats, topListings, loading: dashboardLoading, error, retry } = useDashboard(!authLoading && isLoggedIn, user?.userId);
+
+
+  // ✅ AUTH PROTECTION: Redirect to login if not authenticated
+  // BR-S10: Restrict access to BUYER and SELLER only
+  useEffect(() => {
+    if (!authLoading) {
+      if (!isLoggedIn) {
+        router.push('/login?returnUrl=/seller/dashboard');
+      } else if (user && ['ADMIN', 'SHIPPER', 'INSPECTOR'].includes(user.role)) {
+        router.push('/'); // Redirect restricted roles to Home
+      }
+    }
+  }, [isLoggedIn, authLoading, router, user]);
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return <PageLoading message="Đang xác thực thông tin..." />;
+  }
+
+  // Redirect message if not logged in
+  if (!isLoggedIn) {
+    return <PageLoading message="Đang chuyển hướng đến trang đăng nhập..." />;
+  }
+
+  // Load dashboard data using custom hook
+
+
+  // Destructure stats for backward compatibility with existing JSX
+  const {
+    activeListings,
+    pendingListings,
+    rejectedListings,
+    totalTransactions,
+    totalViews,
+    newInquiries
+  } = stats;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 p-8">
+      <div className="max-w-7xl mx-auto animate-fade-in-up">
+        {/* Page Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Bảng điều khiển</h1>
+          <p className="text-gray-600 mt-2 text-lg">
+            Chào mừng trở lại, <span className="font-semibold">{user?.fullName || 'Người dùng'}</span>. Dưới đây là tổng quan bán hàng của bạn.
+          </p>
+        </div>
+
+        {/* Error Banner */}
+        {error && <ErrorBanner message={error} onRetry={retry} />}
+
+        {/* Show loading skeleton for dashboard data */}
+        {dashboardLoading ? (
+          <div className="animate-pulse">
+            {/* Skeleton Metrics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                  <div className="h-4 bg-gray-200 rounded w-24 mb-4"></div>
+                  <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
+                  <div className="h-3 bg-gray-100 rounded w-32"></div>
+                </div>
+              ))}
+            </div>
+            {/* Skeleton Top Listings */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <div className="h-6 bg-gray-200 rounded w-32 mb-6"></div>
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-4 p-4 border border-gray-50 rounded-lg">
+                    <div className="w-16 h-16 bg-gray-200 rounded-lg"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded w-48 mb-2"></div>
+                      <div className="h-3 bg-gray-100 rounded w-24"></div>
+                    </div>
+                    <div className="h-5 bg-gray-200 rounded w-20"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <MetricCard
+                label="Tin đang hiển thị"
+                value={activeListings}
+                icon={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                  </svg>
+                }
+                change="Đang hoạt động"
+                href="/seller/my-listings?status=active"
+              />
+              {/* BR-S10-F01: PENDING listings */}
+              <MetricCard
+                label="Tin chờ duyệt"
+                value={pendingListings}
+                icon={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                }
+                change="Đang chờ phê duyệt"
+                href="/seller/my-listings?status=pending"
+              />
+              {/* BR-S10-F01: REJECTED listings */}
+              <MetricCard
+                label="Tin bị từ chối"
+                value={rejectedListings}
+                icon={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500">
+                    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                  </svg>
+                }
+                change="Cần xem xét lại"
+                href="/seller/my-listings?status=rejected"
+              />
+              {/* BR-S10-F02: Transactions count */}
+              <MetricCard
+                label="Giao dịch"
+                value={totalTransactions}
+                icon={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+                    <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                  </svg>
+                }
+                change="Chức năng chưa khả dụng"
+              />
+            </div>
+
+            {/* Recent Activity & Quick Actions Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+              {/* Recent Activity */}
+              <div className="lg:col-span-2 bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <span className="w-2 h-6 bg-blue-500 rounded-full"></span>
+                  Hoạt động gần đây
+                </h2>
+                <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold border border-blue-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                    Sắp ra mắt
+                  </span>
+                  <p className="text-gray-500 text-sm font-medium">Tính năng đang được phát triển</p>
+                  <p className="text-gray-400 text-xs">Lịch sử hoạt động sẽ hiển thị tại đây trong phiên bản tới</p>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 h-fit sticky top-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <span className="w-2 h-6 bg-orange-500 rounded-full"></span>
+                  Thao tác nhanh
+                </h2>
+                <div className="space-y-3">
+                  <Link
+                    href="/seller/create-listing"
+                    className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-[#FF8A00] text-white rounded-lg font-bold hover:bg-[#FF7A00] hover:shadow-lg hover:-translate-y-0.5 transition-all text-center"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Đăng tin mới
+                  </Link>
+                  <Link
+                    href="/seller/transactions/pending"
+                    className="flex items-center justify-between px-4 py-3 bg-blue-50 text-blue-700 rounded-lg font-medium hover:bg-blue-100 transition-all border border-blue-100"
+                  >
+                    <span>Kiểm tra yêu cầu</span>
+                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+                  </Link>
+                  <Link
+                    href="/seller/my-listings"
+                    className="block px-4 py-3 bg-gray-50 text-gray-700 rounded-lg font-medium hover:bg-gray-100 transition-all text-center border border-gray-100"
+                  >
+                    Xem tin đăng
+                  </Link>
+                  <Link
+                    href="/seller/draft-listings"
+                    className="block px-4 py-3 bg-gray-50 text-gray-700 rounded-lg font-medium hover:bg-gray-100 transition-all text-center border border-gray-100"
+                  >
+                    Tin nháp
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Top Performing Listings */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <span className="w-2 h-6 bg-green-500 rounded-full"></span>
+                Các tin đăng nổi bật
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left px-4 py-3 font-semibold text-gray-700">
+                        Tên xe
+                      </th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-700">
+                        Giá bán
+                      </th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-700">
+                        Lượt xem
+                      </th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-700">
+                        Lượt hỏi mua
+                      </th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-700">
+                        Trạng thái
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topListings.slice(0, TOP_LISTINGS_LIMIT).map((listing: TopListing) => {
+                      return (
+                        <tr
+                          key={listing.id}
+                          className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            {listing.brand} {listing.model}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {formatPrice(listing.price)}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {listing.views}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {listing.inquiries}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${listing.status === "ACTIVE"
+                                ? "bg-green-100 text-green-800"
+                                : listing.status === "PENDING"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : "bg-gray-100 text-gray-800"
+                                }`}
+                            >
+                              {listing.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DashboardPage;

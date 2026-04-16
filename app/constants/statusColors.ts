@@ -1,0 +1,126 @@
+/**
+ * Listing Status Colors
+ * Centralized styling for listing status badges across the application
+ * 
+ * Usage:
+ * import { STATUS_COLORS, ListingStatus } from '@/app/constants/statusColors';
+ * const colors = STATUS_COLORS[status];
+ */
+
+export type ListingStatus =
+    | 'DRAFT' | 'PENDING' | 'REVIEWING' | 'APPROVE' | 'REJECT' | 'ACTIVE' | 'SOLD'
+    | 'NEED_MORE_INFO' | 'HELD'
+    | 'PENDING_SELLER_CONFIRM' | 'CONFIRMED' | 'PENDING_DELIVERY' | 'IN_DELIVERY' | 'DELIVERED'
+    | 'COMPLETED' | 'CANCELLED' | 'DISPUTED' | 'SOLVED' | 'REJECTED';
+
+export interface StatusColorConfig {
+    bg: string;
+    text: string;
+    label?: string; // Optional display label override
+}
+
+export const STATUS_COLORS: Record<ListingStatus, StatusColorConfig> = {
+    DRAFT: {
+        bg: 'bg-gray-100',
+        text: 'text-gray-800',
+        label: 'Nháp'
+    },
+    PENDING: {
+        bg: 'bg-yellow-100',
+        text: 'text-yellow-800',
+        label: 'Chờ duyệt'
+    },
+    REVIEWING: {
+        bg: 'bg-blue-100',
+        text: 'text-blue-800',
+        label: 'Đang xem xét'
+    },
+    APPROVE: {
+        bg: 'bg-green-100',
+        text: 'text-green-800',
+        label: 'Đã duyệt'
+    },
+    REJECT: {
+        bg: 'bg-red-100',
+        text: 'text-red-800',
+        label: 'Bị từ chối'
+    },
+    ACTIVE: {
+        bg: 'bg-green-100',
+        text: 'text-green-800',
+        label: 'Đang bán'
+    },
+    SOLD: {
+        bg: 'bg-purple-100',
+        text: 'text-purple-800',
+        label: 'Đã bán'
+    },
+    NEED_MORE_INFO: {
+        bg: 'bg-blue-100',
+        text: 'text-blue-800',
+        label: 'Cần bổ sung'
+    },
+    HELD: {
+        bg: 'bg-indigo-100',
+        text: 'text-indigo-800',
+        label: 'Đang giữ chỗ'
+    },
+    // Transaction Statuses
+    PENDING_SELLER_CONFIRM: {
+        bg: 'bg-yellow-100',
+        text: 'text-yellow-800',
+        label: 'Chờ xác nhận'
+    },
+    CONFIRMED: {
+        bg: 'bg-blue-100',
+        text: 'text-blue-800',
+        label: 'Đã xác nhận'
+    },
+    PENDING_DELIVERY: {
+        bg: 'bg-indigo-100',
+        text: 'text-indigo-800',
+        label: 'Chờ giao hàng'
+    },
+    IN_DELIVERY: {
+        bg: 'bg-sky-100',
+        text: 'text-sky-800',
+        label: 'Đang giao hàng'
+    },
+    DELIVERED: {
+        bg: 'bg-teal-100',
+        text: 'text-teal-800',
+        label: 'Đã giao hàng'
+    },
+    COMPLETED: {
+        bg: 'bg-green-100',
+        text: 'text-green-800',
+        label: 'Hoàn thành'
+    },
+    CANCELLED: {
+        bg: 'bg-red-100',
+        text: 'text-red-800',
+        label: 'Đã hủy'
+    },
+    DISPUTED: {
+        bg: 'bg-orange-100',
+        text: 'text-orange-800',
+        label: 'Tranh chấp'
+    },
+    SOLVED: {
+        bg: 'bg-green-100',
+        text: 'text-green-800',
+        label: 'Đã giải quyết'
+    },
+    REJECTED: {
+        bg: 'bg-red-500',
+        text: 'text-white',
+        label: 'Bị từ chối'
+    },
+} as const;
+
+/**
+ * Get status color config with fallback for unknown status
+ */
+export function getStatusColors(status: string): StatusColorConfig {
+    return STATUS_COLORS[status as ListingStatus] || STATUS_COLORS.DRAFT;
+}

@@ -1,0 +1,92 @@
+/**
+ * ===========================================
+ * S-01 HOME PAGE (Trang Chủ)
+ * ===========================================
+ * Route: / (root)
+ * File: app/page.tsx (Next.js App Router convention)
+ *
+ * Public page displaying featured bikes preview with "Xem thêm xe" CTA.
+ * Business Rules: BR-H01 through BR-H05
+ *
+ * Sections included:
+ * - Header (navigation, auth)
+ * - HeroSection (search, stats)
+ * - FeaturesSection (why choose us)
+ * - FeaturedBikesSection (6 bikes preview, no pagination)
+ * - CategorySection (browse by category)
+ * - Footer (links, contact)
+ */
+
+'use client';
+
+import React, { useEffect } from 'react';
+import Header from './components/Header';
+import HeroSection from './components/HeroSection';
+import FeaturesSection from './components/FeaturesSection';
+import CategorySection from './components/CategorySection';
+import Footer from './components/Footer';
+import { useAuth } from './hooks/useAuth';
+import { useRouter } from 'next/navigation';
+import { useToast } from './contexts/ToastContext';
+
+export default function Home() {
+    const { user, isLoading } = useAuth();
+    const router = useRouter();
+    const { addToast } = useToast();
+
+    useEffect(() => {
+        if (!isLoading) {
+            if (user?.role === 'ADMIN') {
+                router.replace('/admin/dashboard');
+            } else if (user?.role === 'SHIPPER') {
+                router.replace('/shipper');
+            } else if (user?.role === 'INSPECTOR') {
+                router.replace('/inspector/dashboard');
+            } else if (user?.role === 'SELLER') {
+                addToast('Bạn không có quyền truy cập trang này', 'error');
+                router.replace('/seller/dashboard');
+            }
+        }
+    }, [user, isLoading, router, addToast]);
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-gray-100 animate-pulse">
+                <div className="h-16 bg-gray-300 w-full" />
+                <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+                    <div className="h-64 bg-gray-300 rounded-xl" />
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="h-24 bg-gray-300 rounded-lg" />
+                        <div className="h-24 bg-gray-300 rounded-lg" />
+                        <div className="h-24 bg-gray-300 rounded-lg" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                        {[...Array(6)].map((_, i) => (
+                            <div key={i} className="h-48 bg-gray-300 rounded-lg" />
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (user?.role === 'SHIPPER' || user?.role === 'SELLER') {
+        return null; // Don't render home for Shipper/Seller
+    }
+
+    return (
+        <div className="min-h-screen bg-white">
+
+            {/* Hero Section */}
+            <HeroSection />
+
+            {/* Features Section */}
+            <FeaturesSection />
+
+            {/* Category Section */}
+            <CategorySection />
+
+
+        </div>
+    );
+}

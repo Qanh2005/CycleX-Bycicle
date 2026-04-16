@@ -1,0 +1,105 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+
+/**
+ * useAuth Hook
+ * Centralized authentication logic for consistent auth handling across components
+ */
+
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { User } from '@/app/types/auth';
+import { authService } from '@/app/services/authService';
+
+interface AuthState {
+    isLoggedIn: boolean;
+    isLoading: boolean;
+    user: User | null;
+    role: string | null;
+}
+
+interface UseAuthReturn extends AuthState {
+    logout: () => void;
+    requireAuth: (returnUrl?: string) => boolean;
+}
+
+export const useAuth = (): UseAuthReturn => {
+    const router = useRouter();
+    const pathname = usePathname();
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [user, setUser] = useState<User | null>(null);
+    const [role, setRole] = useState<string | null>(null);
+
+    const syncFromStorage = useCallback(() => {
+        const userData = authService.getUser();
+        const token = authService.getToken();
+
+        if (token && userData) {
+            setUser(userData);
+            setRole(userData.role);
+            setIsLoggedIn(true);
+        } else {
+            setUser(null);
+            setRole(null);
+            setIsLoggedIn(false);
+        }
+    }, []);
+
+    // Đọc lại token/user khi mount và mỗi khi đổi route (Header có thể mount lại
+    // sau khi rời /login; đồng bộ mọi instance useAuth trong app).
+    useEffect(() => {
+        syncFromStorage();
+        setIsLoading(false);
+    }, [pathname, syncFromStorage]);
+
+    // Sync trạng thái khi localStorage thay đổi từ tab khác
+    // (ví dụ: user logout ở tab A → tab B tự động cập nhật)
+    // Hoặc khi login trong cùng tab (auth-changed event)
+    useEffect(() => {
+        const syncAuth = () => {
+            syncFromStorage();
+        };
+        window.addEventListener('storage', syncAuth);
+        window.addEventListener('auth-changed', syncAuth);
+        return () => {
+            window.removeEventListener('storage', syncAuth);
+            window.removeEventListener('auth-changed', syncAuth);
+        };
+    }, [syncFromStorage]);
+
+    const logout = useCallback(() => {
+        authService.logout();
+        setUser(null);
+        setRole(null);
+        setIsLoggedIn(false);
+        router.push('/');
+    }, [router]);
+
+    /**
+     * Check if user is authenticated, redirect to login if not
+     * @param returnUrl - URL to return to after login
+     * @returns true if authenticated, false if redirected to login
+     */
+    const requireAuth = useCallback((returnUrl?: string): boolean => {
+        if (!isLoggedIn) {
+            const loginUrl = returnUrl
+                ? `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+                : '/login';
+            router.push(loginUrl);
+            return false;
+        }
+        return true;
+    }, [isLoggedIn, router]);
+
+    return {
+        isLoggedIn,
+        isLoading,
+        user,
+        role,
+        logout,
+        requireAuth,
+    };
+};
+

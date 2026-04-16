@@ -1,0 +1,24 @@
+import InspectorGuard from "../../../InspectorGuard";
+import InspectorNav from "@/app/components/inspector/InspectorNav";
+import DisputeResolutionClient from "@/app/components/inspector/DisputeResolutionClient";
+import "@/app/components/inspector/inspector.css";
+
+export const metadata = {
+  title: "CycleX - Dispute Resolution",
+};
+
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function DisputeResolutionPage({ params }: PageProps) {
+  const resolvedParams = await params;
+  return (
+    <InspectorGuard>
+      <div className="min-h-screen bg-white">
+        <InspectorNav />
+        <DisputeResolutionClient disputeId={resolvedParams.id} />
+      </div>
+    </InspectorGuard>
+  );
+}

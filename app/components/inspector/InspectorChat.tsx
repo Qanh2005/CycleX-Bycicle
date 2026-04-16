@@ -1,0 +1,266 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+"use client";
+
+import { useState, useRef, useEffect, ChangeEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { inspectorService } from "@/app/services/inspectorService";
+
+type Sender = "INSPECTOR" | "SELLER" | "SYSTEM";
+type ListingStatus = "ACTIVE" | "ARCHIVED";
+
+type Message = {
+  id: string;
+  sender: Sender;
+  content: string;
+  images?: string[];
+  timestamp: string;
+};
+
+export default function InspectorChat() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const reqId = searchParams.get("req") || "REQ-Unknown";
+  const listingId = searchParams.get("id") || "ID-Unknown";
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [input, setInput] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [listingStatus] = useState<ListingStatus>("ACTIVE");
+
+  const isLocked = listingStatus === "ARCHIVED";
+  const endRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadedImageUrlsRef = useRef<string[]>([]);
+
+  const inspectionRequestId = (reqId || "").replace(/\D/g, "") || "1";
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadThread = async () => {
+      try {
+        setLoading(true);
+        const thread =
+          await inspectorService.getChatThread(inspectionRequestId);
+        if (!mounted) return;
+
+        const mapped: Message[] = thread.map((item: any, index: number) => ({
+          id: String(item.id ?? item.messageId ?? `${Date.now()}-${index}`),
+          sender:
+            item.senderRole === "INSPECTOR" || item.sender === "INSPECTOR"
+              ? "INSPECTOR"
+              : item.senderRole === "SELLER" || item.sender === "SELLER"
+                ? "SELLER"
+                : "SYSTEM",
+          content: String(item.text ?? item.content ?? item.message ?? ""),
+          images: Array.isArray(item.images)
+            ? item.images
+            : item.imageUrl
+              ? [item.imageUrl]
+              : undefined,
+          timestamp: String(item.createdAt ?? item.timestamp ?? ""),
+        }));
+
+        setMessages(mapped);
+      } catch {
+        if (mounted) {
+          setMessages([]);
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    loadThread();
+    return () => {
+      mounted = false;
+    };
+  }, [inspectionRequestId]);
+
+  useEffect(() => {
+    return () => {
+      uploadedImageUrlsRef.current.forEach((imageUrl) => {
+        URL.revokeObjectURL(imageUrl);
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || isLocked) return;
+
+    const newMsg: Message = {
+      id: Date.now().toString(),
+      sender: "INSPECTOR",
+      content: input.trim(),
+      timestamp: new Date().toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+
+    try {
+      await inspectorService.sendChatText(inspectionRequestId, input.trim());
+      setMessages((prev) => [...prev, newMsg]);
+      setInput("");
+    } catch {}
+  };
+
+  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || isLocked) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    uploadedImageUrlsRef.current.push(previewUrl);
+
+    setIsUploading(true);
+    setTimeout(() => {
+      const newMsg: Message = {
+        id: Date.now().toString(),
+        sender: "INSPECTOR",
+        content: "",
+        images: [previewUrl],
+        timestamp: new Date().toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setMessages((prev) => [...prev, newMsg]);
+      setIsUploading(false);
+      e.target.value = "";
+    }, 1000);
+  };
+
+  return (
+    <div className="chat-window">
+      <aside className="chat-info-sidebar">
+        <div className="chat-side-header">
+          <button className="back-circle-btn" onClick={() => router.back()}>
+            ←
+          </button>
+          <h3>Kiểm định</h3>
+        </div>
+
+        <div className="info-group">
+          <div className="info-card">
+            <p className="info-label">Mã yêu cầu</p>
+            <p className="info-val">#{reqId}</p>
+          </div>
+          <div className="info-card">
+            <p className="info-label">Mã tin đăng</p>
+            <p className="info-val">{listingId}</p>
+          </div>
+          <div className="info-card status">
+            <p className="info-label">Trạng thái</p>
+            <span
+              className={`status-pill-chat ${isLocked ? "locked" : "active"}`}
+            >
+              {isLocked ? "Đã khóa" : "Đang mở"}
+            </span>
+          </div>
+        </div>
+
+        <div className="chat-guide">
+          <p>
+            Mọi tin nhắn đều được ghi lại để làm bằng chứng giải quyết khiếu
+            nại.
+          </p>
+        </div>
+      </aside>
+
+      <main className="chat-content">
+        <div className="chat-top-bar">
+          <div className="user-profile">
+            <div className="avatar-box">S</div>
+            <div>
+              <p className="user-name">Người bán (Seller)</p>
+              <p className="user-status">Trực tuyến</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="chat-messages-area">
+          {loading && <div className="msg-system">Đang tải hội thoại...</div>}
+          {messages.map((msg) => {
+            const isMe = msg.sender === "INSPECTOR";
+            const isSystem = msg.sender === "SYSTEM";
+
+            if (isSystem)
+              return (
+                <div key={msg.id} className="msg-system">
+                  <span>{msg.content}</span>
+                </div>
+              );
+
+            return (
+              <div key={msg.id} className={`msg-row ${isMe ? "me" : "other"}`}>
+                <div className="msg-bubble-container">
+                  {msg.images?.map((img, i) => (
+                    <img
+                      key={i}
+                      src={img}
+                      className="msg-img"
+                      alt="attachment"
+                    />
+                  ))}
+                  {msg.content.trim() && (
+                    <div className="msg-bubble">
+                      {msg.content}
+                      <span className="msg-time">{msg.timestamp}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <div ref={endRef} />
+        </div>
+
+        <div className="chat-input-container">
+          {isLocked ? (
+            <div className="chat-locked-msg">
+              Cuộc hội thoại này đã kết thúc và được lưu trữ.
+            </div>
+          ) : (
+            <div className="input-wrapper">
+              <input
+                type="file"
+                accept=".jpg, .jpeg, .png"
+                className="hidden-file-input"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+              />
+              <button
+                className="attach-btn"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                📎
+              </button>
+              <input
+                className="main-chat-input"
+                placeholder="Nhập nội dung trao đổi..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              />
+              <button
+                className="send-btn"
+                onClick={handleSend}
+                disabled={!input.trim()}
+              >
+                ↑
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
